@@ -1,40 +1,121 @@
 # Periskope Chat Application
 
-This is a chat application built with Next.js, Tailwind CSS, and Supabase for the Periskope recruitment process.
+## Assignment Overview
 
-## Preview Mode
+This project was developed as part of the Periskope recruitment process. It demonstrates the implementation of a modern, real-time chat application using Next.js and Supabase.
 
-The current version is running in preview mode with mock data. No Supabase connection is required to view the UI.
+## Application Features
 
-## Setting Up for Production
-
-To set up this application with a real Supabase backend:
-
-1. Create a Supabase project at https://supabase.com
-2. Set up the database tables as specified in the assignment
-3. Add the following environment variables to your project:
-   \`\`\`
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   \`\`\`
-4. Replace the mock implementation in `components/supabase-provider.tsx` with the real Supabase client initialization
-
-## Features
-
-- Chat interface with sidebar and message area
-- Real-time messaging (when connected to Supabase)
+### Core Functionality
+- User authentication with email
+- Real-time chat rooms
+- Message history
+- User profiles
 - Search functionality
-- Message grouping by date
 - Responsive design
 
-## Development
+### Technical Implementation
+- Next.js 14 with App Router
+- Supabase for backend services
+- Tailwind CSS for styling
+- Real-time updates
+- Row Level Security
 
-To run the development server:
+## API Endpoints
 
-\`\`\`bash
-npm run dev
-# or
-yarn dev
-\`\`\`
+### Authentication
+```
+POST /auth/signup
+POST /auth/login
+POST /auth/logout
+GET /auth/user
+```
 
-Open [http://localhost:3000](http://localhost:3000) to see the result.
+### Users
+```
+GET /users
+GET /users/:id
+PUT /users/:id
+GET /users/search?query=:query
+```
+
+### Chats
+```
+GET /chats
+POST /chats
+GET /chats/:id
+PUT /chats/:id
+DELETE /chats/:id
+GET /chats/:id/participants
+POST /chats/:id/participants
+DELETE /chats/:id/participants/:userId
+```
+
+### Messages
+```
+GET /chats/:id/messages
+POST /chats/:id/messages
+PUT /messages/:id
+DELETE /messages/:id
+```
+
+## How to Run
+
+1. **Setup Environment**
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   pnpm install
+   ```
+
+3. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Access Application**
+   Open [http://localhost:3000](http://localhost:3000)
+
+## Database Setup
+
+1. Create a Supabase project
+2. Run the SQL commands in the Supabase SQL editor
+3. Enable Row Level Security policies
+
+## Project Structure
+
+```
+periskope/
+├── app/                    # Next.js app directory
+│   ├── chat/              # Chat functionality
+│   ├── auth/              # Authentication
+│   └── layout.tsx         # Root layout
+├── components/            # UI components
+├── lib/                   # Utilities
+└── styles/               # Global styles
+```
+
+## Implementation Details
+
+### Authentication
+- Email-based authentication
+- Automatic profile creation
+- Protected routes
+
+### Chat System
+- Real-time messaging
+- Multiple chat rooms
+- Participant management
+- Message history
+
+### Security
+- Row Level Security
+- Protected API routes
+- Secure authentication
+
+
+

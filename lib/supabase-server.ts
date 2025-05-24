@@ -2,31 +2,41 @@ import { createServerClient as createSupabaseServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import type { Database } from "./database.types"
 
-export const createServerClient = () => {
+export const createServerClient = async (): Promise<ReturnType<typeof createSupabaseServerClient<Database>>> => {
   const cookieStore = cookies()
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn(
-      "Supabase URL or Anon Key is missing. Using mock client. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.",
-    )
-    // Return a mock client with the same interface
-    return createMockClient()
+    throw new Error('Missing Supabase environment variables')
   }
 
   return createSupabaseServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
-        return cookieStore.get(name)?.value
+        const cookie = cookieStore.get(name)
+        return cookie?.value
       },
       set(name: string, value: string, options: any) {
-        cookieStore.set({ name, value, ...options })
+        try {
+          cookieStore.set({ name, value, ...options })
+        } catch (error) {
+          // Handle cookie setting error
+          console.error('Error setting cookie:', error)
+        }
       },
       remove(name: string, options: any) {
-        cookieStore.set({ name, value: "", ...options })
+        try {
+          cookieStore.set({ name, value: "", ...options })
+        } catch (error) {
+          // Handle cookie removal error
+          console.error('Error removing cookie:', error)
+        }
       },
+    },
+    global: {
+      fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
     },
   })
 }
@@ -35,7 +45,7 @@ export const createServerClient = () => {
 function createMockClient() {
   return {
     auth: {
-      getSession: () => Promise.resolve({ data: { session: null } }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
     },
     from: () => ({
       select: () => ({

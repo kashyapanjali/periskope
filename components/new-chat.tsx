@@ -26,7 +26,7 @@ export function NewChat({ users, onChatCreated }: NewChatProps) {
     setIsLoading(true)
 
     try {
-      // Create the chat
+      // First, create the chat
       const { data: chat, error: chatError } = await supabase
         .from("chats")
         .insert({
@@ -36,17 +36,53 @@ export function NewChat({ users, onChatCreated }: NewChatProps) {
         .select()
         .single()
 
-      if (chatError) throw chatError
+      if (chatError) {
+        console.error("Chat creation error:", chatError)
+        throw chatError
+      }
 
-      // Add the selected user to the chat
-      const { error: participantError } = await supabase
+      if (!chat) {
+        throw new Error("Failed to create chat")
+      }
+
+      // Get the current user's ID
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error("No authenticated user found")
+      }
+
+      // Add the current user as a participant
+      const { error: currentUserError } = await supabase
         .from("chat_participants")
         .insert({
           chat_id: chat.id,
-          user_id: selectedUser,
+          user_id: user.id,
         })
 
-      if (participantError) throw participantError
+      if (currentUserError) {
+        console.error("Current user participant error:", currentUserError)
+        // If adding current user fails, delete the chat
+        await supabase.from("chats").delete().eq("id", chat.id)
+        throw currentUserError
+      }
+
+      // Add the selected user to the chat if one was selected
+      if (selectedUser) {
+        const { error: participantError } = await supabase
+          .from("chat_participants")
+          .insert({
+            chat_id: chat.id,
+            user_id: selectedUser,
+          })
+
+        if (participantError) {
+          console.error("Selected user participant error:", participantError)
+          // If adding selected user fails, delete the chat and current user participant
+          await supabase.from("chat_participants").delete().eq("chat_id", chat.id)
+          await supabase.from("chats").delete().eq("id", chat.id)
+          throw participantError
+        }
+      }
 
       toast({
         title: "Chat created successfully",
@@ -57,9 +93,10 @@ export function NewChat({ users, onChatCreated }: NewChatProps) {
       setSelectedUser("")
       onChatCreated()
     } catch (error: any) {
+      console.error("Chat creation error:", error)
       toast({
         title: "Error creating chat",
-        description: error.message,
+        description: error.message || "Failed to create chat",
         variant: "destructive",
       })
     } finally {

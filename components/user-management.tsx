@@ -23,31 +23,32 @@ const DEFAULT_USER: UserFormData = {
   phoneNumber: "7808804225"
 }
 
-// Create auth user in Supabase
-const createAuthUser = async (supabase: any, userData: UserFormData) => {
-  const { data, error } = await supabase.auth.signUp({
-    email: userData.email,
-    password: Math.random().toString(36).slice(-8),
-    options: {
-      data: {
-        full_name: userData.fullName,
-        phone_number: userData.phoneNumber,
-      },
-    },
-  })
-  if (error) throw error
-  return data
-}
+// Helper function to add delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// Create user profile in the database
-const createUserProfile = async (supabase: any, userId: string, userData: UserFormData) => {
-  const { error } = await supabase.from("users").insert({
-    id: userId,
-    email: userData.email,
-    full_name: userData.fullName,
-    phone_number: userData.phoneNumber,
-  })
-  if (error) throw error
+// Create auth user in Supabase with retry logic
+const createAuthUser = async (supabase: any, userData: UserFormData, retryCount = 0) => {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: userData.email,
+      password: Math.random().toString(36).slice(-8),
+      options: {
+        data: {
+          full_name: userData.fullName,
+          phone_number: userData.phoneNumber,
+        },
+      },
+    })
+    if (error) throw error
+    return data
+  } catch (error: any) {
+    if (error.message.includes("429") && retryCount < 3) {
+      // Wait for 2 seconds before retrying
+      await delay(2000)
+      return createAuthUser(supabase, userData, retryCount + 1)
+    }
+    throw error
+  }
 }
 
 // Fetch all users from the database
@@ -65,6 +66,7 @@ export function UserManagement() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [users, setUsers] = useState<User[]>([])
+  const [lastRequestTime, setLastRequestTime] = useState(0)
   const { supabase } = useSupabase()
   const { toast } = useToast()
 
@@ -107,15 +109,31 @@ export function UserManagement() {
     }))
   }
 
+  // Check if we can make a request
+  const canMakeRequest = () => {
+    const now = Date.now()
+    const timeSinceLastRequest = now - lastRequestTime
+    return timeSinceLastRequest >= 2000 // 2 seconds minimum between requests
+  }
+
   // Handle form submission
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!canMakeRequest()) {
+      showError(
+        "Please wait",
+        "You need to wait a few seconds between requests."
+      )
+      return
+    }
+
     setIsLoading(true)
+    setLastRequestTime(Date.now())
 
     try {
       const authData = await createAuthUser(supabase, formData)
       if (authData.user) {
-        await createUserProfile(supabase, authData.user.id, formData)
         showSuccess(
           "User added successfully",
           "The user has been created and can now log in."
@@ -125,7 +143,14 @@ export function UserManagement() {
         setUsers(updatedUsers)
       }
     } catch (error: any) {
-      showError("Error adding user", error.message)
+      if (error.message.includes("429")) {
+        showError(
+          "Rate limit exceeded",
+          "Please wait a few minutes before trying again."
+        )
+      } else {
+        showError("Error adding user", error.message)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -133,11 +158,20 @@ export function UserManagement() {
 
   // Add default test user
   const addDefaultUser = async () => {
+    if (!canMakeRequest()) {
+      showError(
+        "Please wait",
+        "You need to wait a few seconds between requests."
+      )
+      return
+    }
+
     setIsLoading(true)
+    setLastRequestTime(Date.now())
+
     try {
       const authData = await createAuthUser(supabase, DEFAULT_USER)
       if (authData.user) {
-        await createUserProfile(supabase, authData.user.id, DEFAULT_USER)
         showSuccess(
           "Test user added successfully",
           "You can now start chatting with this user."
@@ -146,7 +180,14 @@ export function UserManagement() {
         setUsers(updatedUsers)
       }
     } catch (error: any) {
-      showError("Error adding test user", error.message)
+      if (error.message.includes("429")) {
+        showError(
+          "Rate limit exceeded",
+          "Please wait a few minutes before trying again."
+        )
+      } else {
+        showError("Error adding test user", error.message)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -175,7 +216,7 @@ export function UserManagement() {
         <h2 className="text-lg font-semibold">Add Test User</h2>
         <Button 
           onClick={addDefaultUser} 
-          disabled={isLoading}
+          disabled={isLoading || !canMakeRequest()}
           className="w-full"
         >
           <FiUserPlus className="h-4 w-4 mr-2" />
@@ -200,6 +241,7 @@ export function UserManagement() {
             <Label htmlFor="fullName">Full Name</Label>
             <Input
               id="fullName"
+              type="text"
               value={formData.fullName}
               onChange={handleInputChange}
               required
@@ -215,14 +257,18 @@ export function UserManagement() {
               required
             />
           </div>
-          <Button type="submit" disabled={isLoading} className="w-full">
+          <Button 
+            type="submit" 
+            disabled={isLoading || !canMakeRequest()} 
+            className="w-full"
+          >
             {isLoading ? "Adding..." : "Add User"}
           </Button>
         </form>
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Existing Users</h2>
+        <h2 className="text-lg font-semibold">Users</h2>
         <div className="space-y-2">
           {users.map(renderUserItem)}
         </div>
